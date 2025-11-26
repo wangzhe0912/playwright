@@ -212,6 +212,14 @@ Below is the HTML markup and the respective ARIA snapshot:
 ### option: Locator.ariaSnapshot.timeout = %%-input-timeout-js-%%
 * since: v1.49
 
+### option: Locator.ariaSnapshot.mode
+* since: v1.50
+- `mode` <[AriaSnapshotMode]<"expect"|"ai">>
+
+The mode for generating the aria snapshot. Defaults to `'expect'`.
+* `'expect'` - Standard mode for assertions, without viewport position markers.
+* `'ai'` - AI mode that includes viewport position markers (`[visible]`, `[offscreen:above]`, `[offscreen:below]`, etc.) to help AI understand element visibility.
+
 ## async method: Locator.blur
 * since: v1.28
 

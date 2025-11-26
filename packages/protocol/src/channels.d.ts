@@ -2720,9 +2720,10 @@ export type FrameAddStyleTagResult = {
 export type FrameAriaSnapshotParams = {
   selector: string,
   timeout: number,
+  mode?: 'expect' | 'ai',
 };
 export type FrameAriaSnapshotOptions = {
-
+  mode?: 'expect' | 'ai',
 };
 export type FrameAriaSnapshotResult = {
   snapshot: string,

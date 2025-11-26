@@ -621,6 +621,8 @@ export class Frame extends SdkObject {
   }
 
   async goto(progress: Progress, url: string, options: types.GotoOptions = {}): Promise<network.Response | null> {
+    // [CUSTOM_DEV_TEST] 这是一个测试修改，用于验证开发环境搭建成功
+    progress.log(`[CUSTOM_DEV_TEST] goto() 被调用，目标URL: ${url}`);
     const constructedNavigationURL = constructURLBasedOnBaseURL(this._page.browserContext._options.baseURL, url);
     return this.raceNavigationAction(progress, async () => this.gotoImpl(progress, constructedNavigationURL, options));
   }
@@ -1360,8 +1362,8 @@ export class Frame extends SdkObject {
     return progress.wait(timeout);
   }
 
-  async ariaSnapshot(progress: Progress, selector: string): Promise<string> {
-    return await this._retryWithProgressIfNotConnected(progress, selector, true /* strict */, true /* performActionPreChecks */, handle => progress.race(handle.ariaSnapshot()));
+  async ariaSnapshot(progress: Progress, selector: string, options?: { mode?: 'expect' | 'ai' }): Promise<string> {
+    return await this._retryWithProgressIfNotConnected(progress, selector, true /* strict */, true /* performActionPreChecks */, handle => progress.race(handle.ariaSnapshot(options)));
   }
 
   async expect(progress: Progress, selector: string | undefined, options: FrameExpectParams, timeout?: number): Promise<ExpectResult> {

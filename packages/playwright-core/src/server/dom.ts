@@ -754,8 +754,9 @@ export class ElementHandle<T extends Node = Node> extends js.JSHandle<T> {
     return this._page.delegate.getBoundingBox(this);
   }
 
-  async ariaSnapshot(): Promise<string> {
-    return await this.evaluateInUtility(([injected, element]) => injected.ariaSnapshot(element, { mode: 'expect' }), {});
+  async ariaSnapshot(options?: { mode?: 'expect' | 'ai' }): Promise<string> {
+    const mode = options?.mode || 'expect';
+    return await this.evaluateInUtility(([injected, element, mode]) => injected.ariaSnapshot(element, { mode }), mode);
   }
 
   async screenshot(progress: Progress, options: ScreenshotOptions): Promise<Buffer> {

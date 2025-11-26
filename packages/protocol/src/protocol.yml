@@ -2142,6 +2142,11 @@ Frame:
       parameters:
         selector: string
         timeout: float
+        mode:
+          type: enum?
+          literals:
+            - expect
+            - ai
       returns:
         snapshot: string
       flags:

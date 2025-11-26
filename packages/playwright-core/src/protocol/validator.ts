@@ -1539,6 +1539,7 @@ scheme.FrameAddStyleTagResult = tObject({
 scheme.FrameAriaSnapshotParams = tObject({
   selector: tString,
   timeout: tFloat,
+  mode: tOptional(tEnum(['expect', 'ai'])),
 });
 scheme.FrameAriaSnapshotResult = tObject({
   snapshot: tString,

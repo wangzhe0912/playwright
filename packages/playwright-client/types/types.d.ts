@@ -12573,6 +12573,14 @@ export interface Locator {
    */
   ariaSnapshot(options?: {
     /**
+     * The mode for generating the aria snapshot. Defaults to `'expect'`.
+     * - `'expect'` - Standard mode for assertions, without viewport position markers.
+     * - `'ai'` - AI mode that includes viewport position markers (`[visible]`, `[offscreen:above]`,
+     *   `[offscreen:below]`, etc.) to help AI understand element visibility.
+     */
+    mode?: "expect"|"ai";
+
+    /**
      * Maximum time in milliseconds. Defaults to `0` - no timeout. The default value can be changed via `actionTimeout`
      * option in the config, or by using the
      * [browserContext.setDefaultTimeout(timeout)](https://playwright.dev/docs/api/class-browsercontext#browser-context-set-default-timeout)
