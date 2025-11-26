@@ -639,6 +639,14 @@ export function renderAriaTree(ariaSnapshot: AriaSnapshot, publicOptions: AriaTr
       if (renderCursorPointer && hasPointerCursor(ariaNode))
         key += ' [cursor=pointer]';
     }
+    
+    // 添加视口可见性标记（仅在 AI 模式下）
+    if (publicOptions.mode === 'ai') {
+      const visibility = getViewportVisibility(ariaNode);
+      if (visibility)
+        key += ` [${visibility}]`;
+    }
+    
     return key;
   };
 
@@ -754,4 +762,42 @@ function textContributesInfo(node: AriaNode, text: string): boolean {
 
 function hasPointerCursor(ariaNode: AriaNode): boolean {
   return ariaNode.box.cursor === 'pointer';
+}
+
+function getViewportVisibility(ariaNode: AriaNode): string | undefined {
+  const rect = ariaNode.box.rect;
+  if (!rect)
+    return undefined;
+  
+  // 获取视口尺寸
+  const viewportWidth = ariaNode.element.ownerDocument?.defaultView?.innerWidth || 0;
+  const viewportHeight = ariaNode.element.ownerDocument?.defaultView?.innerHeight || 0;
+  
+  if (viewportWidth === 0 || viewportHeight === 0)
+    return undefined;
+  
+  // 检查元素是否在视口中（有任何部分可见）
+  const isInViewport = rect.top < viewportHeight && rect.bottom > 0 && 
+                       rect.left < viewportWidth && rect.right > 0;
+  
+  if (isInViewport) {
+    return 'visible';
+  }
+  
+  // 判断元素在哪个方向（优先判断垂直方向，然后是水平方向）
+  if (rect.bottom <= 0) {
+    return 'offscreen:above';
+  }
+  if (rect.top >= viewportHeight) {
+    return 'offscreen:below';
+  }
+  if (rect.right <= 0) {
+    return 'offscreen:left';
+  }
+  if (rect.left >= viewportWidth) {
+    return 'offscreen:right';
+  }
+  
+  // 如果元素部分在视口中，标记为 visible
+  return 'visible';
 }
