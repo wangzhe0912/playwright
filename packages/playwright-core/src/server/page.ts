@@ -1038,7 +1038,7 @@ class FrameThrottler {
   }
 }
 
-async function snapshotFrameForAI(progress: Progress, frame: frames.Frame, options: { track?: string }): Promise<{ full: string[], incremental?: string[] }> {
+async function snapshotFrameForAI(progress: Progress, frame: frames.Frame, options: { track?: string, parentViewportPosition?: string }): Promise<{ full: string[], incremental?: string[] }> {
   // Only await the topmost navigations, inner frames will be empty when racing.
   const snapshot = await frame.retryWithProgressAndTimeouts(progress, [1000, 2000, 4000, 8000], async continuePolling => {
     try {
@@ -1060,7 +1060,33 @@ async function snapshotFrameForAI(progress: Progress, frame: frames.Frame, optio
     }
   });
 
-  const childSnapshotPromises = snapshot.iframeRefs.map(ref => snapshotFrameRefForAI(progress, frame, ref, options));
+  // Build a map of iframe ref to its viewport position from the snapshot
+  const iframeViewportPositions = new Map<string, string>();
+  for (const line of snapshot.full.split('\n')) {
+    // Match iframe lines and extract viewport position: [visible] or [offscreen:xxx]
+    const iframeMatch = line.match(/^(\s*)- iframe (?:\[active\] )?\[ref=([^\]]*)\](?:[^\[]*\[(visible|offscreen:[^\]]+)\])?/);
+    if (iframeMatch) {
+      const ref = iframeMatch[2];
+      const viewportPosition = iframeMatch[3]; // 'visible' | 'offscreen:above' | 'offscreen:below' | etc.
+      if (viewportPosition)
+        iframeViewportPositions.set(ref, viewportPosition);
+    }
+  }
+
+  const childSnapshotPromises = snapshot.iframeRefs.map(ref => {
+    const iframeViewportPosition = iframeViewportPositions.get(ref);
+    // Determine the effective viewport position for the child frame:
+    // - If parent is offscreen, child inherits parent's offscreen status
+    // - If parent is visible but iframe itself is offscreen, use iframe's offscreen status
+    // - Otherwise, child elements use their own viewport position
+    let effectiveViewportPosition: string | undefined;
+    if (options.parentViewportPosition?.startsWith('offscreen:'))
+      effectiveViewportPosition = options.parentViewportPosition;
+    else if (iframeViewportPosition?.startsWith('offscreen:'))
+      effectiveViewportPosition = iframeViewportPosition;
+
+    return snapshotFrameRefForAI(progress, frame, ref, { ...options, parentViewportPosition: effectiveViewportPosition });
+  });
   const childSnapshots = await Promise.all(childSnapshotPromises);
 
   const full = [];
@@ -1091,10 +1117,19 @@ async function snapshotFrameForAI(progress: Progress, frame: frames.Frame, optio
     full.push(...childSnapshot.full.map(l => leadingSpace + '  ' + l));
   }
 
+  // If parent iframe is offscreen, replace [visible] markers in this frame's snapshot with parent's offscreen status
+  if (options.parentViewportPosition?.startsWith('offscreen:')) {
+    const replacement = `[${options.parentViewportPosition}]`;
+    return {
+      full: full.map(line => line.replace(/\[visible\]/g, replacement)),
+      incremental: incremental?.map(line => line.replace(/\[visible\]/g, replacement))
+    };
+  }
+
   return { full, incremental };
 }
 
-async function snapshotFrameRefForAI(progress: Progress, parentFrame: frames.Frame, frameRef: string, options: { track?: string, mode?: 'full' | 'incremental' }): Promise<{ full: string[], incremental?: string[] }> {
+async function snapshotFrameRefForAI(progress: Progress, parentFrame: frames.Frame, frameRef: string, options: { track?: string, mode?: 'full' | 'incremental', parentViewportPosition?: string }): Promise<{ full: string[], incremental?: string[] }> {
   const frameSelector = `aria-ref=${frameRef} >> internal:control=enter-frame`;
   const frameBodySelector = `${frameSelector} >> body`;
   const child = await progress.race(parentFrame.selectors.resolveFrameForSelector(frameBodySelector, { strict: true }));
