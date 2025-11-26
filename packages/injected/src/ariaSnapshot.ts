@@ -74,6 +74,7 @@ type InternalOptions = {
   renderCursorPointer?: boolean,
   renderActive?: boolean,
   renderStringsAsRegex?: boolean,
+  renderVisibilityState?: boolean,
 };
 
 function toInternalOptions(options: AriaTreeOptions): InternalOptions {
@@ -86,6 +87,7 @@ function toInternalOptions(options: AriaTreeOptions): InternalOptions {
       includeGenericRole: true,
       renderActive: true,
       renderCursorPointer: true,
+      renderVisibilityState: true,
     };
   }
   if (options.mode === 'autoexpect') {
@@ -634,11 +636,14 @@ export function renderAriaTree(ariaSnapshot: AriaSnapshot, publicOptions: AriaTr
     if (ariaNode.selected === true)
       key += ` [selected]`;
 
-    if (ariaNode.ref) {
+    const visibilityTag = options.renderVisibilityState ? describeVisibilityState(ariaNode) : undefined;
+
+    if (ariaNode.ref)
       key += ` [ref=${ariaNode.ref}]`;
-      if (renderCursorPointer && hasPointerCursor(ariaNode))
-        key += ' [cursor=pointer]';
-    }
+    if (visibilityTag)
+      key += ` ${visibilityTag}`;
+    if (ariaNode.ref && renderCursorPointer && hasPointerCursor(ariaNode))
+      key += ' [cursor=pointer]';
     return key;
   };
 
@@ -754,4 +759,44 @@ function textContributesInfo(node: AriaNode, text: string): boolean {
 
 function hasPointerCursor(ariaNode: AriaNode): boolean {
   return ariaNode.box.cursor === 'pointer';
+}
+
+function describeVisibilityState(ariaNode: AriaNode): string | undefined {
+  const rect = ariaNode.box.rect;
+  if (!rect || !ariaNode.box.visible)
+    return undefined;
+
+  const ownerDocument = ariaNode.element.ownerDocument;
+  const ownerWindow = ownerDocument?.defaultView;
+  if (!ownerWindow)
+    return undefined;
+
+  const visualViewport = ownerWindow.visualViewport;
+  const viewportLeft = visualViewport?.offsetLeft ?? 0;
+  const viewportTop = visualViewport?.offsetTop ?? 0;
+  const viewportWidth = visualViewport?.width ?? ownerWindow.innerWidth;
+  const viewportHeight = visualViewport?.height ?? ownerWindow.innerHeight;
+  if (!viewportWidth || !viewportHeight)
+    return undefined;
+
+  const viewportRight = viewportLeft + viewportWidth;
+  const viewportBottom = viewportTop + viewportHeight;
+  const intersectsHorizontally = rect.right > viewportLeft && rect.left < viewportRight;
+  const intersectsVertically = rect.bottom > viewportTop && rect.top < viewportBottom;
+  if (intersectsHorizontally && intersectsVertically)
+    return '[visible]';
+
+  const directions: string[] = [];
+  if (rect.bottom <= viewportTop)
+    directions.push('above');
+  else if (rect.top >= viewportBottom)
+    directions.push('below');
+  if (rect.right <= viewportLeft)
+    directions.push('left');
+  else if (rect.left >= viewportRight)
+    directions.push('right');
+  if (!directions.length)
+    return undefined;
+
+  return `[offscreen:${directions.join('-')}]`;
 }
