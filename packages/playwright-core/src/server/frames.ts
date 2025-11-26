@@ -1363,7 +1363,92 @@ export class Frame extends SdkObject {
   }
 
   async ariaSnapshot(progress: Progress, selector: string, options?: { mode?: 'expect' | 'ai' }): Promise<string> {
-    return await this._retryWithProgressIfNotConnected(progress, selector, true /* strict */, true /* performActionPreChecks */, handle => progress.race(handle.ariaSnapshot(options)));
+    let snapshot = await this._retryWithProgressIfNotConnected(progress, selector, true /* strict */, true /* performActionPreChecks */, handle => progress.race(handle.ariaSnapshot(options)));
+
+    // For AI mode, check if this frame is inside an offscreen parent iframe
+    // and inherit the offscreen status if so
+    if (options?.mode === 'ai') {
+      const parentViewportPosition = await this._getParentFrameViewportPosition(progress);
+      if (parentViewportPosition?.startsWith('offscreen:')) {
+        const replacement = `[${parentViewportPosition}]`;
+        snapshot = snapshot.replace(/\[visible\]/g, replacement);
+      }
+    }
+
+    return snapshot;
+  }
+
+  /**
+   * Gets the viewport position of this frame's iframe element in its parent frame.
+   * Recursively checks all ancestor frames to find the first offscreen position.
+   * Returns undefined if the frame is the main frame or all ancestors are visible.
+   */
+  private async _getParentFrameViewportPosition(progress: Progress): Promise<string | undefined> {
+    let frame: Frame | null = this;
+
+    while (frame?.parentFrame()) {
+      try {
+        const frameElement = await progress.race(frame.frameElement());
+        if (frameElement) {
+          // Get the viewport position of the iframe element in its parent frame
+          const viewportPosition = await progress.race(frameElement.evaluateInUtility(([injected, element]) => {
+            const rect = element.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0)
+              return undefined;
+
+            const win = element.ownerDocument?.defaultView;
+            if (!win)
+              return undefined;
+
+            const visualViewport = win.visualViewport;
+            const viewportLeft = visualViewport?.offsetLeft ?? 0;
+            const viewportTop = visualViewport?.offsetTop ?? 0;
+            const viewportWidth = visualViewport?.width ?? win.innerWidth;
+            const viewportHeight = visualViewport?.height ?? win.innerHeight;
+
+            if (!viewportWidth || !viewportHeight)
+              return undefined;
+
+            const viewportRight = viewportLeft + viewportWidth;
+            const viewportBottom = viewportTop + viewportHeight;
+
+            const intersectsHorizontally = rect.right > viewportLeft && rect.left < viewportRight;
+            const intersectsVertically = rect.bottom > viewportTop && rect.top < viewportBottom;
+
+            if (intersectsHorizontally && intersectsVertically)
+              return 'visible';
+
+            const directions: string[] = [];
+            if (rect.bottom <= viewportTop)
+              directions.push('above');
+            else if (rect.top >= viewportBottom)
+              directions.push('below');
+
+            if (rect.right <= viewportLeft)
+              directions.push('left');
+            else if (rect.left >= viewportRight)
+              directions.push('right');
+
+            if (!directions.length)
+              return 'visible';
+
+            return `offscreen:${directions.join('-')}`;
+          }, {}));
+
+          frameElement.dispose();
+
+          // If this iframe is offscreen, return its position
+          if (viewportPosition && viewportPosition.startsWith('offscreen:'))
+            return viewportPosition;
+        }
+      } catch {
+        // Ignore errors and continue checking
+      }
+
+      frame = frame.parentFrame();
+    }
+
+    return undefined;
   }
 
   async expect(progress: Progress, selector: string | undefined, options: FrameExpectParams, timeout?: number): Promise<ExpectResult> {

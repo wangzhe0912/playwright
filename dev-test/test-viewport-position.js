@@ -302,6 +302,114 @@ async function testNestedIframeViewportPosition(page) {
   };
 }
 
+async function testLocatorAriaSnapshotAPI(page) {
+  console.log('\n' + '='.repeat(70));
+  console.log('测试 4: 使用 locator.ariaSnapshot(mode="ai") API 遍历 frames');
+  console.log('（模拟用户实际使用模式）');
+  console.log('='.repeat(70));
+  
+  // 先滚动回顶部，重置状态
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(200);
+  
+  // 创建包含 iframe 的页面
+  await page.setContent(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { margin: 0; padding: 20px; }
+        .visible-section { background: #90EE90; padding: 20px; margin: 20px 0; }
+        .offscreen-section { margin-top: 800px; background: #FFB6C1; padding: 20px; }
+        iframe { border: 2px solid blue; }
+      </style>
+    </head>
+    <body>
+      <h1>Locator API 测试</h1>
+      
+      <div class="visible-section">
+        <h2>可见区域的 iframe</h2>
+        <iframe id="visible-iframe" srcdoc="
+          <!DOCTYPE html>
+          <html>
+          <body style='margin:10px;'>
+            <button id='btn1'>可见iframe按钮</button>
+          </body>
+          </html>
+        " width="300" height="80"></iframe>
+      </div>
+      
+      <div class="offscreen-section">
+        <h2>视口下方的 iframe</h2>
+        <iframe id="offscreen-iframe" srcdoc="
+          <!DOCTYPE html>
+          <html>
+          <body style='margin:10px;'>
+            <button id='btn2'>offscreen-iframe按钮</button>
+          </body>
+          </html>
+        " width="300" height="80"></iframe>
+      </div>
+    </body>
+    </html>
+  `);
+
+  await page.waitForTimeout(500);
+
+  console.log('\n[1] 使用 locator.ariaSnapshot(mode="ai") 获取主页面快照...');
+  const mainSnapshot = await page.locator('body').ariaSnapshot({ mode: 'ai' });
+  console.log('--- 主页面快照 ---');
+  console.log(mainSnapshot);
+  console.log('--- 结束 ---\n');
+
+  console.log('[2] 遍历 frames 并获取各 frame 的快照...');
+  const frames = page.frames();
+  const frameSnapshots = [];
+  
+  for (const frame of frames) {
+    if (frame === page.mainFrame()) continue;
+    if (!frame.url() || frame.url() === 'about:blank') continue;
+    
+    try {
+      const frameSnapshot = await frame.locator('body').ariaSnapshot({ mode: 'ai' });
+      console.log(`--- Frame [${frame.url().substring(0, 50)}...] 快照 ---`);
+      console.log(frameSnapshot);
+      console.log('--- 结束 ---\n');
+      frameSnapshots.push(frameSnapshot);
+    } catch (e) {
+      console.log(`Frame 获取失败: ${e.message}`);
+    }
+  }
+
+  console.log('[3] 分析结果...');
+  
+  // 检查主页面中 offscreen iframe 是否标记正确
+  const mainHasOffscreenIframe = /iframe[^\n]*\[offscreen:below\]/.test(mainSnapshot);
+  
+  // 检查第一个 frame (可见 iframe) 的内容是否标记为 visible
+  const visibleFrameSnapshot = frameSnapshots[0] || '';
+  const visibleFrameHasVisible = /可见iframe按钮[^\n]*\[visible\]/.test(visibleFrameSnapshot);
+  
+  // 检查第二个 frame (offscreen iframe) 的内容是否继承了 offscreen 状态
+  const offscreenFrameSnapshot = frameSnapshots[1] || '';
+  const offscreenFrameInheritsOffscreen = /offscreen-iframe按钮[^\n]*\[offscreen:below\]/.test(offscreenFrameSnapshot);
+  // 确保它没有被错误标记为 visible
+  const offscreenFrameWronglyVisible = /offscreen-iframe按钮[^\n]*\[visible\]/.test(offscreenFrameSnapshot);
+  
+  console.log('   检查结果:');
+  console.log(`   - 主页面 offscreen iframe 标记为 [offscreen:below]: ${mainHasOffscreenIframe ? '✅' : '❌'}`);
+  console.log(`   - 可见 frame 内按钮标记为 [visible]: ${visibleFrameHasVisible ? '✅' : '❌'}`);
+  console.log(`   - offscreen frame 内按钮继承 [offscreen:below]: ${offscreenFrameInheritsOffscreen ? '✅' : '❌'} ⭐⭐ (关键测试)`);
+  console.log(`   - offscreen frame 内按钮未被错误标记为 [visible]: ${!offscreenFrameWronglyVisible ? '✅' : '❌'}`);
+  
+  return {
+    mainHasOffscreenIframe,
+    visibleFrameHasVisible,
+    offscreenFrameInheritsOffscreen,
+    offscreenFrameWronglyVisible
+  };
+}
+
 async function main() {
   console.log('='.repeat(70));
   console.log('Playwright aria_snapshot 视口位置标记功能测试 (AI 模式)');
@@ -323,6 +431,7 @@ async function main() {
   const basicResults = await testBasicViewportPosition(page);
   const iframeResults = await testIframeViewportPosition(page);
   const nestedResults = await testNestedIframeViewportPosition(page);
+  const locatorApiResults = await testLocatorAriaSnapshotAPI(page);
   
   // 关闭浏览器
   console.log('\n[关闭] 关闭浏览器...');
@@ -348,14 +457,24 @@ async function main() {
   console.log(`   - 外层 iframe 内元素继承 [offscreen:below]: ${nestedResults.outerBtnOffscreen ? '✅ 通过' : '❌ 失败'}`);
   console.log(`   - 内层 iframe 内元素继承 [offscreen:below]: ${nestedResults.innerBtnOffscreen ? '✅ 通过' : '❌ 失败'} ⭐`);
   
+  console.log('\n📋 Locator API 测试 (用户实际使用模式):');
+  console.log(`   - 主页面 offscreen iframe 标记正确: ${locatorApiResults.mainHasOffscreenIframe ? '✅ 通过' : '❌ 失败'}`);
+  console.log(`   - 可见 frame 内元素标记为 [visible]: ${locatorApiResults.visibleFrameHasVisible ? '✅ 通过' : '❌ 失败'}`);
+  console.log(`   - offscreen frame 内元素继承 [offscreen:below]: ${locatorApiResults.offscreenFrameInheritsOffscreen ? '✅ 通过' : '❌ 失败'} ⭐⭐`);
+  console.log(`   - 没有错误的 [visible] 标记: ${!locatorApiResults.offscreenFrameWronglyVisible ? '✅ 通过' : '❌ 失败'}`);
+  
   // 判断整体测试结果
   const allBasicPassed = basicResults.hasVisibleMarker && basicResults.hasOffscreenMarker && basicResults.hasAboveMarker;
   const allIframePassed = iframeResults.hasVisibleInVisibleIframe && 
                           iframeResults.iframeOffscreenMarker && 
                           iframeResults.hasOffscreenInOffscreenIframe;
   const allNestedPassed = nestedResults.outerBtnOffscreen && nestedResults.innerBtnOffscreen;
+  const allLocatorApiPassed = locatorApiResults.mainHasOffscreenIframe &&
+                              locatorApiResults.visibleFrameHasVisible &&
+                              locatorApiResults.offscreenFrameInheritsOffscreen &&
+                              !locatorApiResults.offscreenFrameWronglyVisible;
   
-  const allPassed = allBasicPassed && allIframePassed && allNestedPassed;
+  const allPassed = allBasicPassed && allIframePassed && allNestedPassed && allLocatorApiPassed;
   
   console.log('\n' + '='.repeat(70));
   if (allPassed) {
@@ -365,6 +484,7 @@ async function main() {
     if (!allBasicPassed) console.log('   - 基本视口位置测试存在问题');
     if (!allIframePassed) console.log('   - iframe 视口位置测试存在问题');
     if (!allNestedPassed) console.log('   - 嵌套 iframe 视口位置测试存在问题');
+    if (!allLocatorApiPassed) console.log('   - Locator API 测试存在问题');
   }
   console.log('='.repeat(70));
   
