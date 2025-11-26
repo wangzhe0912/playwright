@@ -128,11 +128,17 @@ export type Box = {
   viewportPosition?: ViewportPosition;
 };
 
+export type MainFrameViewport = { offsetX: number, offsetY: number, width: number, height: number };
+
 /**
  * Computes the viewport position of an element based on its bounding rect.
  * Returns the position relative to the current browser viewport.
+ *
+ * If mainFrameViewport is provided, calculates position relative to the main frame's viewport
+ * by adding the cumulative offset to element coordinates and using main frame's viewport bounds.
+ * This is used for elements inside child frames to determine their true visibility in the main viewport.
  */
-export function computeViewportPosition(rect: DOMRect | undefined, element: Element): ViewportPosition | undefined {
+export function computeViewportPosition(rect: DOMRect | undefined, element: Element, mainFrameViewport?: MainFrameViewport): ViewportPosition | undefined {
   if (!rect || (rect.width === 0 && rect.height === 0))
     return undefined;
 
@@ -140,12 +146,38 @@ export function computeViewportPosition(rect: DOMRect | undefined, element: Elem
   if (!win)
     return undefined;
 
-  // Use visualViewport if available for more accurate measurements (handles zoom, etc.)
-  const visualViewport = win.visualViewport;
-  const viewportLeft = visualViewport?.offsetLeft ?? 0;
-  const viewportTop = visualViewport?.offsetTop ?? 0;
-  const viewportWidth = visualViewport?.width ?? win.innerWidth;
-  const viewportHeight = visualViewport?.height ?? win.innerHeight;
+  let viewportLeft: number;
+  let viewportTop: number;
+  let viewportWidth: number;
+  let viewportHeight: number;
+  let elementLeft: number;
+  let elementRight: number;
+  let elementTop: number;
+  let elementBottom: number;
+
+  if (mainFrameViewport) {
+    // Use main frame's viewport and add offset to element coordinates
+    viewportLeft = 0;
+    viewportTop = 0;
+    viewportWidth = mainFrameViewport.width;
+    viewportHeight = mainFrameViewport.height;
+    // Transform element coordinates to main frame coordinate system
+    elementLeft = rect.left + mainFrameViewport.offsetX;
+    elementRight = rect.right + mainFrameViewport.offsetX;
+    elementTop = rect.top + mainFrameViewport.offsetY;
+    elementBottom = rect.bottom + mainFrameViewport.offsetY;
+  } else {
+    // Use current frame's viewport
+    const visualViewport = win.visualViewport;
+    viewportLeft = visualViewport?.offsetLeft ?? 0;
+    viewportTop = visualViewport?.offsetTop ?? 0;
+    viewportWidth = visualViewport?.width ?? win.innerWidth;
+    viewportHeight = visualViewport?.height ?? win.innerHeight;
+    elementLeft = rect.left;
+    elementRight = rect.right;
+    elementTop = rect.top;
+    elementBottom = rect.bottom;
+  }
 
   if (!viewportWidth || !viewportHeight)
     return undefined;
@@ -154,8 +186,8 @@ export function computeViewportPosition(rect: DOMRect | undefined, element: Elem
   const viewportBottom = viewportTop + viewportHeight;
 
   // Check if the element intersects with the viewport
-  const intersectsHorizontally = rect.right > viewportLeft && rect.left < viewportRight;
-  const intersectsVertically = rect.bottom > viewportTop && rect.top < viewportBottom;
+  const intersectsHorizontally = elementRight > viewportLeft && elementLeft < viewportRight;
+  const intersectsVertically = elementBottom > viewportTop && elementTop < viewportBottom;
 
   // Element is at least partially within the viewport
   if (intersectsHorizontally && intersectsVertically)
@@ -164,14 +196,14 @@ export function computeViewportPosition(rect: DOMRect | undefined, element: Elem
   // Determine the direction(s) where the element is offscreen
   const directions: string[] = [];
 
-  if (rect.bottom <= viewportTop)
+  if (elementBottom <= viewportTop)
     directions.push('above');
-  else if (rect.top >= viewportBottom)
+  else if (elementTop >= viewportBottom)
     directions.push('below');
 
-  if (rect.right <= viewportLeft)
+  if (elementRight <= viewportLeft)
     directions.push('left');
-  else if (rect.left >= viewportRight)
+  else if (elementLeft >= viewportRight)
     directions.push('right');
 
   if (!directions.length)
@@ -180,7 +212,7 @@ export function computeViewportPosition(rect: DOMRect | undefined, element: Elem
   return `offscreen:${directions.join('-')}`;
 }
 
-export function computeBox(element: Element): Box {
+export function computeBox(element: Element, mainFrameViewport?: MainFrameViewport): Box {
   // Note: this logic should be similar to waitForDisplayedAtStablePosition() to avoid surprises.
   const style = getElementComputedStyle(element);
   if (!style)
@@ -199,7 +231,7 @@ export function computeBox(element: Element): Box {
   if (!isElementStyleVisibilityVisible(element, style))
     return { cursor, visible: false, inline: false };
   const rect = element.getBoundingClientRect();
-  const viewportPosition = computeViewportPosition(rect, element);
+  const viewportPosition = computeViewportPosition(rect, element, mainFrameViewport);
   return { rect, cursor, visible: rect.width > 0 && rect.height > 0, inline: style.display === 'inline', viewportPosition };
 }
 

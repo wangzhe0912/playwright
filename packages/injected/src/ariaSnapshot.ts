@@ -17,7 +17,7 @@
 import { ariaPropsEqual } from '@isomorphic/ariaSnapshot';
 import { escapeRegExp, longestCommonSubstring, normalizeWhiteSpace } from '@isomorphic/stringUtils';
 
-import { computeBox, getElementComputedStyle, isElementVisible } from './domUtils';
+import { computeBox, getElementComputedStyle, isElementVisible, MainFrameViewport } from './domUtils';
 import * as roleUtils from './roleUtils';
 import { yamlEscapeKeyIfNeeded, yamlEscapeValueIfNeeded } from './yaml';
 
@@ -67,6 +67,10 @@ let lastRef = 0;
 export type AriaTreeOptions = {
   mode: 'ai' | 'expect' | 'codegen' | 'autoexpect';
   refPrefix?: string;
+  // For calculating viewport position relative to the main frame viewport
+  // when this is a child frame. offsetX/offsetY are the cumulative offset
+  // from this frame's origin to the main frame's origin.
+  mainFrameViewport?: { offsetX: number, offsetY: number, width: number, height: number };
 };
 
 type InternalOptions = {
@@ -78,6 +82,7 @@ type InternalOptions = {
   renderActive?: boolean,
   renderStringsAsRegex?: boolean,
   renderViewportPosition?: boolean,
+  mainFrameViewport?: { offsetX: number, offsetY: number, width: number, height: number },
 };
 
 function toInternalOptions(options: AriaTreeOptions): InternalOptions {
@@ -91,6 +96,7 @@ function toInternalOptions(options: AriaTreeOptions): InternalOptions {
       renderActive: true,
       renderCursorPointer: true,
       renderViewportPosition: true,
+      mainFrameViewport: options.mainFrameViewport,
     };
   }
   if (options.mode === 'autoexpect') {
@@ -107,10 +113,11 @@ function toInternalOptions(options: AriaTreeOptions): InternalOptions {
 
 export function generateAriaTree(rootElement: Element, publicOptions: AriaTreeOptions): AriaSnapshot {
   const options = toInternalOptions(publicOptions);
+  const mainFrameViewport = options.mainFrameViewport;
   const visited = new Set<Node>();
 
   const snapshot: AriaSnapshot = {
-    root: { role: 'fragment', name: '', children: [], element: rootElement, props: {}, box: computeBox(rootElement), receivesPointerEvents: true },
+    root: { role: 'fragment', name: '', children: [], element: rootElement, props: {}, box: computeBox(rootElement, mainFrameViewport), receivesPointerEvents: true },
     elements: new Map<string, Element>(),
     refs: new Map<Element, string>(),
     iframeRefs: [],
@@ -245,6 +252,7 @@ function computeAriaRef(ariaNode: AriaNode, options: InternalOptions) {
 
 function toAriaNode(element: Element, options: InternalOptions): AriaNode | null {
   const active = element.ownerDocument.activeElement === element;
+  const mainFrameViewport = options.mainFrameViewport;
   if (element.nodeName === 'IFRAME') {
     const ariaNode: AriaNode = {
       role: 'iframe',
@@ -252,7 +260,7 @@ function toAriaNode(element: Element, options: InternalOptions): AriaNode | null
       children: [],
       props: {},
       element,
-      box: computeBox(element),
+      box: computeBox(element, mainFrameViewport),
       receivesPointerEvents: true,
       active
     };
@@ -268,7 +276,7 @@ function toAriaNode(element: Element, options: InternalOptions): AriaNode | null
   const name = normalizeWhiteSpace(roleUtils.getElementAccessibleName(element, false) || '');
   const receivesPointerEvents = roleUtils.receivesPointerEvents(element);
 
-  const box = computeBox(element);
+  const box = computeBox(element, mainFrameViewport);
   if (role === 'generic' && box.inline && element.childNodes.length === 1 && element.childNodes[0].nodeType === Node.TEXT_NODE)
     return null;
 

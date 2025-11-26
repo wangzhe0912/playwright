@@ -302,9 +302,134 @@ async function testNestedIframeViewportPosition(page) {
   };
 }
 
+async function testPartiallyVisibleIframe(page) {
+  console.log('\n' + '='.repeat(70));
+  console.log('测试 4: iframe 部分可见但内部元素不可见的边缘情况');
+  console.log('='.repeat(70));
+  
+  // 先滚动回顶部，重置状态
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(200);
+  
+  // 创建一个 iframe，让它的顶部刚好在视口边缘
+  // iframe 高度 300px，内部元素在 iframe 中间位置（距离顶部 100px）
+  // 当页面滚动到让 iframe 顶部刚露出 50px 时，内部元素实际上还看不见
+  await page.setContent(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { margin: 0; padding: 20px; height: 2000px; }
+        h1 { margin: 10px 0; }
+        .spacer { height: 500px; background: #f0f0f0; }
+        iframe { border: 2px solid blue; display: block; }
+      </style>
+    </head>
+    <body>
+      <h1>边缘情况测试</h1>
+      <div class="spacer">占位区域</div>
+      <iframe id="test-iframe" srcdoc="
+        <!DOCTYPE html>
+        <html>
+        <body style='margin:0; padding:0; height:300px;'>
+          <div style='height:150px; background:#f5f5f5;'>顶部空白区域</div>
+          <button id='middle-btn' style='display:block; margin:20px;'>中间位置的按钮</button>
+          <div style='height:100px; background:#e0e0e0;'>底部区域</div>
+        </body>
+        </html>
+      " width="400" height="300"></iframe>
+    </body>
+    </html>
+  `);
+
+  await page.waitForTimeout(500);
+
+  // 滚动页面，让 iframe 刚好露出顶部 50px (视口高度600，spacer 500px + iframe开始)
+  // 滚动到位置：500 - 600 + 50 = -50，这意味着需要滚动到 500 - 50 = 450px 处
+  // 不对，让我重新计算：
+  // - 视口高度：600px
+  // - spacer 顶部：约 40px (h1 + 一些 margin)
+  // - spacer 高度：500px
+  // - iframe 顶部位置：约 540px
+  // - 要让 iframe 露出 50px，需要滚动到：540 - 600 + 50 = -10，不需要滚动
+  // 实际上让我们滚动到 iframe 刚进入视口的位置
+  
+  console.log('\n[1] 滚动页面，让 iframe 部分进入视口（只露出顶部边缘）...');
+  // 滚动到让 iframe 的顶部刚好进入视口底部（只露出一点点）
+  await page.evaluate(() => {
+    const iframe = document.querySelector('#test-iframe');
+    const rect = iframe.getBoundingClientRect();
+    const iframeTop = rect.top + window.scrollY;
+    // 滚动到让 iframe 顶部刚好在视口底部位置，再往上滚一点让它露出 30px
+    window.scrollTo(0, iframeTop - window.innerHeight + 30);
+  });
+  await page.waitForTimeout(300);
+
+  console.log('[2] 获取 frame 快照...');
+  const frames = page.frames();
+  let iframeSnapshot = '';
+  
+  for (const frame of frames) {
+    if (frame === page.mainFrame()) continue;
+    if (!frame.url() || frame.url() === 'about:blank') continue;
+    
+    try {
+      iframeSnapshot = await frame.locator('body').ariaSnapshot({ mode: 'ai' });
+      console.log('--- iframe 内容快照 ---');
+      console.log(iframeSnapshot);
+      console.log('--- 结束 ---\n');
+    } catch (e) {
+      console.log(`Frame 获取失败: ${e.message}`);
+    }
+  }
+
+  // 检查：iframe 部分可见，但内部按钮应该是 offscreen:below（因为按钮在 iframe 中间，还没滚动到）
+  const btnOffscreen = /中间位置的按钮[^\n]*\[offscreen:below\]/.test(iframeSnapshot);
+  const btnVisible = /中间位置的按钮[^\n]*\[visible\]/.test(iframeSnapshot);
+  
+  console.log('[3] 分析边缘情况结果...');
+  console.log(`   - iframe 部分可见时，内部按钮应为 offscreen: ${btnOffscreen ? '✅' : '❌'}`);
+  console.log(`   - 内部按钮没有被错误标记为 visible: ${!btnVisible ? '✅' : '❌'}`);
+
+  // 继续滚动，让按钮真正可见
+  console.log('\n[4] 继续滚动，让 iframe 内的按钮真正进入视口...');
+  await page.evaluate(() => {
+    const iframe = document.querySelector('#test-iframe');
+    const rect = iframe.getBoundingClientRect();
+    const iframeTop = rect.top + window.scrollY;
+    // 滚动到让 iframe 的中间部分可见
+    window.scrollTo(0, iframeTop - window.innerHeight / 2);
+  });
+  await page.waitForTimeout(300);
+
+  for (const frame of frames) {
+    if (frame === page.mainFrame()) continue;
+    if (!frame.url() || frame.url() === 'about:blank') continue;
+    
+    try {
+      iframeSnapshot = await frame.locator('body').ariaSnapshot({ mode: 'ai' });
+      console.log('--- 滚动后 iframe 内容快照 ---');
+      console.log(iframeSnapshot);
+      console.log('--- 结束 ---\n');
+    } catch (e) {
+      console.log(`Frame 获取失败: ${e.message}`);
+    }
+  }
+
+  const btnVisibleAfterScroll = /中间位置的按钮[^\n]*\[visible\]/.test(iframeSnapshot);
+  console.log('[5] 验证滚动后按钮变为可见...');
+  console.log(`   - 按钮现在标记为 visible: ${btnVisibleAfterScroll ? '✅' : '❌'}`);
+
+  return {
+    btnOffscreenWhenPartial: btnOffscreen,
+    btnNotWronglyVisible: !btnVisible,
+    btnVisibleAfterScroll
+  };
+}
+
 async function testLocatorAriaSnapshotAPI(page) {
   console.log('\n' + '='.repeat(70));
-  console.log('测试 4: 使用 locator.ariaSnapshot(mode="ai") API 遍历 frames');
+  console.log('测试 5: 使用 locator.ariaSnapshot(mode="ai") API 遍历 frames');
   console.log('（模拟用户实际使用模式）');
   console.log('='.repeat(70));
   
@@ -431,6 +556,7 @@ async function main() {
   const basicResults = await testBasicViewportPosition(page);
   const iframeResults = await testIframeViewportPosition(page);
   const nestedResults = await testNestedIframeViewportPosition(page);
+  const partialResults = await testPartiallyVisibleIframe(page);
   const locatorApiResults = await testLocatorAriaSnapshotAPI(page);
   
   // 关闭浏览器
@@ -457,6 +583,11 @@ async function main() {
   console.log(`   - 外层 iframe 内元素继承 [offscreen:below]: ${nestedResults.outerBtnOffscreen ? '✅ 通过' : '❌ 失败'}`);
   console.log(`   - 内层 iframe 内元素继承 [offscreen:below]: ${nestedResults.innerBtnOffscreen ? '✅ 通过' : '❌ 失败'} ⭐`);
   
+  console.log('\n📋 iframe 部分可见边缘情况测试:');
+  console.log(`   - iframe 部分可见时内部按钮为 offscreen: ${partialResults.btnOffscreenWhenPartial ? '✅ 通过' : '❌ 失败'} ⭐⭐⭐`);
+  console.log(`   - 内部按钮没有被错误标记为 visible: ${partialResults.btnNotWronglyVisible ? '✅ 通过' : '❌ 失败'}`);
+  console.log(`   - 滚动后按钮变为 visible: ${partialResults.btnVisibleAfterScroll ? '✅ 通过' : '❌ 失败'}`);
+  
   console.log('\n📋 Locator API 测试 (用户实际使用模式):');
   console.log(`   - 主页面 offscreen iframe 标记正确: ${locatorApiResults.mainHasOffscreenIframe ? '✅ 通过' : '❌ 失败'}`);
   console.log(`   - 可见 frame 内元素标记为 [visible]: ${locatorApiResults.visibleFrameHasVisible ? '✅ 通过' : '❌ 失败'}`);
@@ -469,12 +600,15 @@ async function main() {
                           iframeResults.iframeOffscreenMarker && 
                           iframeResults.hasOffscreenInOffscreenIframe;
   const allNestedPassed = nestedResults.outerBtnOffscreen && nestedResults.innerBtnOffscreen;
+  const allPartialPassed = partialResults.btnOffscreenWhenPartial &&
+                           partialResults.btnNotWronglyVisible &&
+                           partialResults.btnVisibleAfterScroll;
   const allLocatorApiPassed = locatorApiResults.mainHasOffscreenIframe &&
                               locatorApiResults.visibleFrameHasVisible &&
                               locatorApiResults.offscreenFrameInheritsOffscreen &&
                               !locatorApiResults.offscreenFrameWronglyVisible;
   
-  const allPassed = allBasicPassed && allIframePassed && allNestedPassed && allLocatorApiPassed;
+  const allPassed = allBasicPassed && allIframePassed && allNestedPassed && allPartialPassed && allLocatorApiPassed;
   
   console.log('\n' + '='.repeat(70));
   if (allPassed) {
@@ -484,6 +618,7 @@ async function main() {
     if (!allBasicPassed) console.log('   - 基本视口位置测试存在问题');
     if (!allIframePassed) console.log('   - iframe 视口位置测试存在问题');
     if (!allNestedPassed) console.log('   - 嵌套 iframe 视口位置测试存在问题');
+    if (!allPartialPassed) console.log('   - iframe 部分可见边缘情况测试存在问题');
     if (!allLocatorApiPassed) console.log('   - Locator API 测试存在问题');
   }
   console.log('='.repeat(70));
