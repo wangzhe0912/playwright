@@ -108,6 +108,8 @@ export function isElementStyleVisibilityVisible(element: Element, style?: CSSSty
   return true;
 }
 
+export type ViewportPosition = 'visible' | 'offscreen:above' | 'offscreen:below' | 'offscreen:left' | 'offscreen:right';
+
 export type Box = {
   visible: boolean;
   inline: boolean;
@@ -116,7 +118,40 @@ export type Box = {
   // and changes values over time. This does not work for caching or comparing to the
   // old values. Instead, store all the properties separately.
   cursor?: CSSStyleDeclaration['cursor'];
+  viewportPosition?: ViewportPosition;
 };
+
+function computeViewportPosition(element: Element, rect: DOMRect): ViewportPosition {
+  const doc = element.ownerDocument;
+  if (!doc || !doc.defaultView)
+    return 'visible';
+
+  const viewport = {
+    width: doc.defaultView.innerWidth,
+    height: doc.defaultView.innerHeight
+  };
+
+  // Check if element is completely within viewport
+  if (rect.top >= 0 && rect.left >= 0 && rect.bottom <= viewport.height && rect.right <= viewport.width)
+    return 'visible';
+
+  // Determine primary offscreen direction based on element center
+  const centerY = (rect.top + rect.bottom) / 2;
+  const centerX = (rect.left + rect.right) / 2;
+
+  // Prioritize vertical direction over horizontal
+  if (centerY < 0)
+    return 'offscreen:above';
+  if (centerY > viewport.height)
+    return 'offscreen:below';
+  if (centerX < 0)
+    return 'offscreen:left';
+  if (centerX > viewport.width)
+    return 'offscreen:right';
+
+  // Element is partially visible, consider it visible
+  return 'visible';
+}
 
 export function computeBox(element: Element): Box {
   // Note: this logic should be similar to waitForDisplayedAtStablePosition() to avoid surprises.
@@ -137,7 +172,8 @@ export function computeBox(element: Element): Box {
   if (!isElementStyleVisibilityVisible(element, style))
     return { cursor, visible: false, inline: false };
   const rect = element.getBoundingClientRect();
-  return { rect, cursor, visible: rect.width > 0 && rect.height > 0, inline: style.display === 'inline' };
+  const viewportPosition = computeViewportPosition(element, rect);
+  return { rect, cursor, visible: rect.width > 0 && rect.height > 0, inline: style.display === 'inline', viewportPosition };
 }
 
 export function isElementVisible(element: Element): boolean {

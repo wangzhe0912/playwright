@@ -743,3 +743,51 @@ it('should create incremental snapshot for children swap', async ({ page }) => {
       - ref=e3 [unchanged]
   `);
 });
+
+it('should include viewport position markers', async ({ page }) => {
+  await page.setContent(`
+    <style>
+      body { margin: 0; padding: 0; }
+      .visible-button { margin-top: 100px; }
+      .offscreen-button { margin-top: 2000px; }
+    </style>
+    <button class="visible-button">Visible Button</button>
+    <button class="offscreen-button">Offscreen Button</button>
+  `);
+
+  const snapshot = await snapshotForAI(page);
+  
+  // The visible button should be marked as [visible]
+  expect(snapshot).toContain('[visible]');
+  
+  // The offscreen button should be marked as [offscreen:below]
+  expect(snapshot).toContain('[offscreen:below]');
+  
+  // Verify the complete structure
+  expect(snapshot).toContainYaml(`
+    - button "Visible Button" [ref=e2] [visible]
+  `);
+});
+
+it('should mark elements above viewport as offscreen:above', async ({ page }) => {
+  await page.setContent(`
+    <style>
+      body { margin: 0; padding: 0; }
+      .spacer { height: 2000px; }
+    </style>
+    <button id="top-button">Top Button</button>
+    <div class="spacer"></div>
+    <button id="bottom-button">Bottom Button</button>
+  `);
+
+  // Scroll down so top button is above viewport
+  await page.evaluate(() => window.scrollTo(0, 1500));
+
+  const snapshot = await snapshotForAI(page);
+  
+  // The top button should be marked as [offscreen:above]
+  expect(snapshot).toContain('[offscreen:above]');
+  
+  // The bottom button should be visible or offscreen:below
+  expect(snapshot).toMatch(/Bottom Button.*\[(visible|offscreen:below)\]/);
+});

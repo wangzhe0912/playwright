@@ -74,6 +74,7 @@ type InternalOptions = {
   renderCursorPointer?: boolean,
   renderActive?: boolean,
   renderStringsAsRegex?: boolean,
+  renderViewportPosition?: boolean,
 };
 
 function toInternalOptions(options: AriaTreeOptions): InternalOptions {
@@ -86,6 +87,7 @@ function toInternalOptions(options: AriaTreeOptions): InternalOptions {
       includeGenericRole: true,
       renderActive: true,
       renderCursorPointer: true,
+      renderViewportPosition: true,
     };
   }
   if (options.mode === 'autoexpect') {
@@ -636,6 +638,10 @@ export function renderAriaTree(ariaSnapshot: AriaSnapshot, publicOptions: AriaTr
 
     if (ariaNode.ref) {
       key += ` [ref=${ariaNode.ref}]`;
+      // Add viewport position marker for AI mode
+      if (options.renderViewportPosition && ariaNode.box.viewportPosition) {
+        key += ` [${ariaNode.box.viewportPosition}]`;
+      }
       if (renderCursorPointer && hasPointerCursor(ariaNode))
         key += ' [cursor=pointer]';
     }
