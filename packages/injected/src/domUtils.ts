@@ -108,6 +108,9 @@ export function isElementStyleVisibilityVisible(element: Element, style?: CSSSty
   return true;
 }
 
+// Describes the element's position relative to the viewport
+export type ViewportPosition = 'visible' | 'offscreen:above' | 'offscreen:below' | 'offscreen:left' | 'offscreen:right' | 'offscreen';
+
 export type Box = {
   visible: boolean;
   inline: boolean;
@@ -116,7 +119,45 @@ export type Box = {
   // and changes values over time. This does not work for caching or comparing to the
   // old values. Instead, store all the properties separately.
   cursor?: CSSStyleDeclaration['cursor'];
+  viewportPosition?: ViewportPosition;
 };
+
+function computeViewportPosition(rect: DOMRect | undefined, element: Element): ViewportPosition | undefined {
+  if (!rect || (rect.width === 0 && rect.height === 0))
+    return undefined;
+
+  const win = element.ownerDocument?.defaultView;
+  if (!win)
+    return undefined;
+
+  const viewportWidth = win.innerWidth;
+  const viewportHeight = win.innerHeight;
+
+  // Check if the element is completely outside the viewport
+  // An element is considered visible if any part of it intersects with the viewport
+  const isAbove = rect.bottom <= 0;
+  const isBelow = rect.top >= viewportHeight;
+  const isLeft = rect.right <= 0;
+  const isRight = rect.left >= viewportWidth;
+
+  // Determine the primary direction where the element is offscreen
+  // Priority: vertical direction first (above/below), then horizontal (left/right)
+  if (isAbove && !isLeft && !isRight)
+    return 'offscreen:above';
+  if (isBelow && !isLeft && !isRight)
+    return 'offscreen:below';
+  if (isLeft && !isAbove && !isBelow)
+    return 'offscreen:left';
+  if (isRight && !isAbove && !isBelow)
+    return 'offscreen:right';
+
+  // If offscreen in multiple directions (e.g., above-left corner), return generic offscreen
+  if (isAbove || isBelow || isLeft || isRight)
+    return 'offscreen';
+
+  // Element is at least partially within the viewport
+  return 'visible';
+}
 
 export function computeBox(element: Element): Box {
   // Note: this logic should be similar to waitForDisplayedAtStablePosition() to avoid surprises.
@@ -137,7 +178,8 @@ export function computeBox(element: Element): Box {
   if (!isElementStyleVisibilityVisible(element, style))
     return { cursor, visible: false, inline: false };
   const rect = element.getBoundingClientRect();
-  return { rect, cursor, visible: rect.width > 0 && rect.height > 0, inline: style.display === 'inline' };
+  const viewportPosition = computeViewportPosition(rect, element);
+  return { rect, cursor, visible: rect.width > 0 && rect.height > 0, inline: style.display === 'inline', viewportPosition };
 }
 
 export function isElementVisible(element: Element): boolean {

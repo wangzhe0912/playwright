@@ -41,6 +41,8 @@ function ariaNodesEqual(a: AriaNode, b: AriaNode): boolean {
     return false;
   if (!ariaPropsEqual(a, b) || hasPointerCursor(a) !== hasPointerCursor(b))
     return false;
+  if (a.box.viewportPosition !== b.box.viewportPosition)
+    return false;
   const aKeys = Object.keys(a.props);
   const bKeys = Object.keys(b.props);
   return aKeys.length === bKeys.length && aKeys.every(k => a.props[k] === b.props[k]);
@@ -74,6 +76,7 @@ type InternalOptions = {
   renderCursorPointer?: boolean,
   renderActive?: boolean,
   renderStringsAsRegex?: boolean,
+  renderViewportPosition?: boolean,
 };
 
 function toInternalOptions(options: AriaTreeOptions): InternalOptions {
@@ -86,6 +89,7 @@ function toInternalOptions(options: AriaTreeOptions): InternalOptions {
       includeGenericRole: true,
       renderActive: true,
       renderCursorPointer: true,
+      renderViewportPosition: true,
     };
   }
   if (options.mode === 'autoexpect') {
@@ -636,6 +640,9 @@ export function renderAriaTree(ariaSnapshot: AriaSnapshot, publicOptions: AriaTr
 
     if (ariaNode.ref) {
       key += ` [ref=${ariaNode.ref}]`;
+      // Add viewport position information for AI mode
+      if (options.renderViewportPosition && ariaNode.box.viewportPosition)
+        key += ` [${ariaNode.box.viewportPosition}]`;
       if (renderCursorPointer && hasPointerCursor(ariaNode))
         key += ' [cursor=pointer]';
     }
