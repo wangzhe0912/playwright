@@ -33,10 +33,10 @@ it('should generate refs', async ({ page }) => {
 
   const snapshot1 = await snapshotForAI(page);
   expect(snapshot1).toContainYaml(`
-    - generic [active] [ref=e1]:
-      - button "One" [ref=e2]
-      - button "Two" [ref=e3]
-      - button "Three" [ref=e4]
+    - generic [active] [visible] [ref=e1]:
+      - button "One" [visible] [ref=e2]
+      - button "Two" [visible] [ref=e3]
+      - button "Three" [visible] [ref=e4]
   `);
   await expect(page.locator('aria-ref=e2')).toHaveText('One');
   await expect(page.locator('aria-ref=e3')).toHaveText('Two');
@@ -48,10 +48,10 @@ it('should generate refs', async ({ page }) => {
 
   const snapshot2 = await snapshotForAI(page);
   expect(snapshot2).toContainYaml(`
-    - generic [active] [ref=e1]:
-      - button "One" [ref=e2]
-      - button "Not Two" [ref=e5]
-      - button "Three" [ref=e4]
+    - generic [active] [visible] [ref=e1]:
+      - button "One" [visible] [ref=e2]
+      - button "Not Two" [visible] [ref=e5]
+      - button "Three" [visible] [ref=e4]
   `);
 });
 
@@ -72,15 +72,15 @@ it('should stitch all frame snapshots', async ({ page, server }) => {
   await page.goto(server.PREFIX + '/frames/nested-frames.html');
   const snapshot = await snapshotForAI(page);
   expect(snapshot).toContainYaml(`
-    - generic [active] [ref=e1]:
-      - iframe [ref=e2]:
-        - generic [active] [ref=f1e1]:
-          - iframe [ref=f1e2]:
-            - generic [ref=f3e2]: Hi, I'm frame
-          - iframe [ref=f1e3]:
-            - generic [ref=f4e2]: Hi, I'm frame
-      - iframe [ref=e3]:
-        - generic [ref=f2e2]: Hi, I'm frame
+    - generic [active] [visible] [ref=e1]:
+      - iframe [visible] [ref=e2]:
+        - generic [active] [visible] [ref=f1e1]:
+          - iframe [visible] [ref=f1e2]:
+            - generic [visible] [ref=f3e2]: Hi, I'm frame
+          - iframe [visible] [ref=f1e3]:
+            - generic [visible] [ref=f4e2]: Hi, I'm frame
+      - iframe [visible] [ref=e3]:
+        - generic [visible] [ref=f2e2]: Hi, I'm frame
   `);
 
   const href = await page.locator('aria-ref=e1').evaluate(e => e.ownerDocument.defaultView.location.href);
@@ -122,22 +122,22 @@ it('should persist iframe references', async ({ page }) => {
     </ul>
   `);
   expect(await snapshotForAI(page)).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]:
-        - iframe [ref=e4]:
-          - button "button1" [ref=f1e2]
-      - listitem [ref=e5]:
-        - iframe [ref=e6]:
-          - button "button2" [ref=f2e2]
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]:
+        - iframe [visible] [ref=e4]:
+          - button "button1" [visible] [ref=f1e2]
+      - listitem [visible] [ref=e5]:
+        - iframe [visible] [ref=e6]:
+          - button "button2" [visible] [ref=f2e2]
   `);
 
   await page.evaluate(() => document.querySelector('iframe').remove());
   expect(await snapshotForAI(page)).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]
-      - listitem [ref=e5]:
-        - iframe [ref=e6]:
-          - button "button2" [ref=f2e2]
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]
+      - listitem [visible] [ref=e5]:
+        - iframe [visible] [ref=e6]:
+          - button "button2" [visible] [ref=f2e2]
   `);
   await expect(page.locator('aria-ref=f2e2')).toHaveText('button2');
 
@@ -147,13 +147,13 @@ it('should persist iframe references', async ({ page }) => {
     document.querySelector('li').appendChild(frame);
   });
   expect(await snapshotForAI(page)).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]:
-        - iframe [ref=e7]:
-          - button "button1" [ref=f3e2]
-      - listitem [ref=e5]:
-        - iframe [ref=e6]:
-          - button "button2" [ref=f2e2]
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]:
+        - iframe [visible] [ref=e7]:
+          - button "button1" [visible] [ref=f3e2]
+      - listitem [visible] [ref=e5]:
+        - iframe [visible] [ref=e6]:
+          - button "button2" [visible] [ref=f2e2]
   `);
   await expect(page.locator('aria-ref=f3e2')).toHaveText('button1');
   await expect(page.locator('aria-ref=f2e2')).toHaveText('button2');
@@ -184,12 +184,12 @@ it('should not generate refs for elements with pointer-events:none', async ({ pa
 
   const snapshot = await snapshotForAI(page);
   expect(snapshot).toContainYaml(`
-    - generic [active] [ref=e1]:
+    - generic [active] [visible] [ref=e1]:
       - button "no-ref"
-      - button "with-ref" [ref=e2]
-      - button "with-ref" [ref=e4]
-      - button "with-ref" [ref=e6]
-      - generic [ref=e7]:
+      - button "with-ref" [visible] [ref=e2]
+      - button "with-ref" [visible] [ref=e4]
+      - button "with-ref" [visible] [ref=e6]
+      - generic [visible] [ref=e7]:
         - generic:
           - button "no-ref"
   `);
@@ -229,17 +229,17 @@ it('emit generic roles for nodes w/o roles', async ({ page }) => {
   const snapshot = await snapshotForAI(page);
 
   expect(snapshot).toContainYaml(`
-    - generic [ref=e2]:
-      - generic [ref=e3]:
-        - generic [ref=e4]:
+    - generic [visible] [ref=e2]:
+      - generic [visible] [ref=e3]:
+        - generic [visible] [ref=e4]:
           - radio "Apple" [checked]
         - text: Apple
-      - generic [ref=e5]:
-        - generic [ref=e6]:
+      - generic [visible] [ref=e5]:
+        - generic [visible] [ref=e6]:
           - radio "Pear"
         - text: Pear
-      - generic [ref=e7]:
-        - generic [ref=e8]:
+      - generic [visible] [ref=e7]:
+        - generic [visible] [ref=e8]:
           - radio "Orange"
         - text: Orange
   `);
@@ -258,7 +258,7 @@ it('should collapse generic nodes', async ({ page }) => {
 
   const snapshot = await snapshotForAI(page);
   expect(snapshot).toContainYaml(`
-    - button \"Button\" [ref=e5]
+    - button \"Button\" [visible] [ref=e5]
   `);
 });
 
@@ -269,7 +269,7 @@ it('should include cursor pointer hint', async ({ page }) => {
 
   const snapshot = await snapshotForAI(page);
   expect(snapshot).toContainYaml(`
-    - button \"Button\" [ref=e2] [cursor=pointer]
+    - button \"Button\" [visible] [ref=e2] [cursor=pointer]
   `);
 });
 
@@ -283,10 +283,10 @@ it('should not nest cursor pointer hints', async ({ page }) => {
 
   const snapshot = await snapshotForAI(page);
   expect(snapshot).toContainYaml(`
-    - link \"Link with a button Button\" [ref=e2] [cursor=pointer]:
+    - link \"Link with a button Button\" [visible] [ref=e2] [cursor=pointer]:
       - /url: about:blank
       - text: Link with a button
-      - button "Button" [ref=e3]
+      - button "Button" [visible] [ref=e3]
   `);
 });
 
@@ -297,9 +297,9 @@ it('should gracefully fallback when child frame cant be captured', async ({ page
   `, { waitUntil: 'domcontentloaded' });
   const snapshot = await snapshotForAI(page);
   expect(snapshot).toContainYaml(`
-    - generic [active] [ref=e1]:
-      - paragraph [ref=e2]: Test
-      - iframe [ref=e3]
+    - generic [active] [visible] [ref=e1]:
+      - paragraph [visible] [ref=e2]: Test
+      - iframe [visible] [ref=e3]
   `);
 });
 
@@ -310,7 +310,7 @@ it('should auto-wait for navigation', async ({ page, server }) => {
     snapshotForAI(page)
   ]);
   expect(snapshot).toContainYaml(`
-    - generic [ref=e2]: Hi, I'm frame
+    - generic [visible] [ref=e2]: Hi, I'm frame
   `);
 });
 
@@ -345,9 +345,9 @@ it('should show visible children of hidden elements', { annotation: { type: 'iss
   `);
 
   expect(await snapshotForAI(page)).toEqual(unshift(`
-    - generic [active] [ref=e1]:
-      - button "Visible" [ref=e3]
-      - button "Visible" [ref=e4]
+    - generic [active] [visible] [ref=e1]:
+      - button "Visible" [visible] [ref=e3]
+      - button "Visible" [visible] [ref=e4]
   `));
 });
 
@@ -364,10 +364,10 @@ it('should include active element information', async ({ page }) => {
   const snapshot = await snapshotForAI(page);
 
   expect(snapshot).toContainYaml(`
-    - generic [ref=e1]:
-      - button "Button 1" [ref=e2]
-      - button "Button 2" [active] [ref=e3]
-      - generic [ref=e4]: Not focusable
+    - generic [visible] [ref=e1]:
+      - button "Button 1" [visible] [ref=e2]
+      - button "Button 2" [active] [visible] [ref=e3]
+      - generic [visible] [ref=e4]: Not focusable
   `);
 });
 
@@ -380,9 +380,9 @@ it('should update active element on focus', async ({ page }) => {
   // Initially there shouldn't be an active element on the inputs
   const initialSnapshot = await snapshotForAI(page);
   expect(initialSnapshot).toContainYaml(`
-    - generic [active] [ref=e1]:
-      - textbox "First input" [ref=e2]
-      - textbox "Second input" [ref=e3]
+    - generic [active] [visible] [ref=e1]:
+      - textbox "First input" [visible] [ref=e2]
+      - textbox "Second input" [visible] [ref=e3]
   `);
 
   // Focus the second input
@@ -392,9 +392,9 @@ it('should update active element on focus', async ({ page }) => {
   const afterFocusSnapshot = await snapshotForAI(page);
 
   expect(afterFocusSnapshot).toContainYaml(`
-    - generic [ref=e1]:
-      - textbox "First input" [ref=e2]
-      - textbox "Second input" [active] [ref=e3]
+    - generic [visible] [ref=e1]:
+      - textbox "First input" [visible] [ref=e2]
+      - textbox "Second input" [active] [visible] [ref=e3]
   `);
 });
 
@@ -411,10 +411,10 @@ it('should mark iframe as active when it contains focused element', async ({ pag
 
   // The iframe should be marked as active when it contains a focused element
   expect(inputInIframeFocusedSnapshot).toContainYaml(`
-    - generic [ref=e1]:
-      - textbox "Regular input" [ref=e2]
-      - iframe [active] [ref=e3]:
-        - textbox "Input in iframe" [active] [ref=f1e2]
+    - generic [visible] [ref=e1]:
+      - textbox "Regular input" [visible] [ref=e2]
+      - iframe [active] [visible] [ref=e3]:
+        - textbox "Input in iframe" [active] [visible] [ref=f1e2]
   `);
 });
 
@@ -432,9 +432,9 @@ it('return empty snapshot when iframe is not loaded', { annotation: { type: 'iss
 
   // The iframe should be present but empty
   expect(snapshot).toContainYaml(`
-    - generic [active] [ref=e1]:
-      - generic [ref=e2]: Test
-      - iframe [ref=e3]
+    - generic [active] [visible] [ref=e1]:
+      - generic [visible] [ref=e2]: Test
+      - iframe [offscreen:below] [ref=e3]
   `);
 });
 
@@ -449,10 +449,10 @@ it('should support many properties on iframes', async ({ page }) => {
   const inputInIframeFocusedSnapshot = await snapshotForAI(page);
 
   expect(inputInIframeFocusedSnapshot).toContainYaml(`
-    - generic [ref=e1]:
-      - textbox "Regular input" [ref=e2]
-      - iframe [active] [ref=e3] [cursor=pointer]:
-        - textbox "Input in iframe" [active] [ref=f1e2]
+    - generic [visible] [ref=e1]:
+      - textbox "Regular input" [visible] [ref=e2]
+      - iframe [active] [visible] [ref=e3] [cursor=pointer]:
+        - textbox "Input in iframe" [active] [visible] [ref=f1e2]
   `);
 });
 
@@ -471,18 +471,18 @@ it('should collapse inline generic nodes', async ({ page }) => {
 
   const snapshot1 = await snapshotForAI(page);
   expect(snapshot1).toContainYaml(`
-    - generic [active] [ref=e1]:
-      - list [ref=e2]:
-        - listitem [ref=e3]: 3 bds
-        - listitem [ref=e4]: 2 ba
-        - listitem [ref=e5]: 1,200 sqft
-      - list [ref=e6]:
-        - listitem [ref=e7]:
-          - generic [ref=e8]: "3"
-        - listitem [ref=e9]:
-          - generic [ref=e10]: "2"
-        - listitem [ref=e11]:
-          - generic [ref=e12]: 1,200
+    - generic [active] [visible] [ref=e1]:
+      - list [visible] [ref=e2]:
+        - listitem [visible] [ref=e3]: 3 bds
+        - listitem [visible] [ref=e4]: 2 ba
+        - listitem [visible] [ref=e5]: 1,200 sqft
+      - list [visible] [ref=e6]:
+        - listitem [visible] [ref=e7]:
+          - generic [visible] [ref=e8]: "3"
+        - listitem [visible] [ref=e9]:
+          - generic [visible] [ref=e10]: "2"
+        - listitem [visible] [ref=e11]:
+          - generic [visible] [ref=e12]: 1,200
   `);
 });
 
@@ -491,7 +491,7 @@ it('should not remove generic nodes with title', async ({ page }) => {
 
   const snapshot = await snapshotForAI(page);
   expect(snapshot).toContainYaml(`
-    - generic "Element title" [ref=e2]
+    - generic "Element title" [visible] [ref=e2]
   `);
 });
 
@@ -499,16 +499,16 @@ it('should create incremental snapshots on multiple tracks', async ({ page }) =>
   await page.setContent(`<ul><li><button>a button</button></li><li><span>a span</span></li><li id=hidden-li style="display:none">some text</li></ul>`);
 
   expect(await snapshotForAI(page, { track: 'first', mode: 'full' })).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]:
-        - button "a button" [ref=e4]
-      - listitem [ref=e5]: a span
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]:
+        - button "a button" [visible] [ref=e4]
+      - listitem [visible] [ref=e5]: a span
   `);
   expect(await snapshotForAI(page, { track: 'second', mode: 'full' })).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]:
-        - button "a button" [ref=e4]
-      - listitem [ref=e5]: a span
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]:
+        - button "a button" [visible] [ref=e4]
+      - listitem [visible] [ref=e5]: a span
   `);
   expect(await snapshotForAI(page, { track: 'first', mode: 'incremental' })).toContainYaml(`
   `);
@@ -518,10 +518,10 @@ it('should create incremental snapshots on multiple tracks', async ({ page }) =>
     document.getElementById('hidden-li').style.display = 'inline';
   });
   expect(await snapshotForAI(page, { track: 'first', mode: 'incremental' })).toContainYaml(`
-    - <changed> list [ref=e2]:
+    - <changed> list [visible] [ref=e2]:
       - ref=e3 [unchanged]
-      - listitem [ref=e5]: changed span
-      - listitem [ref=e6]: some text
+      - listitem [visible] [ref=e5]: changed span
+      - listitem [visible] [ref=e6]: some text
   `);
 
   await page.evaluate(() => {
@@ -529,18 +529,18 @@ it('should create incremental snapshots on multiple tracks', async ({ page }) =>
     document.getElementById('hidden-li').style.display = 'none';
   });
   expect(await snapshotForAI(page, { track: 'first', mode: 'incremental' })).toContainYaml(`
-    - <changed> list [ref=e2]:
+    - <changed> list [visible] [ref=e2]:
       - ref=e3 [unchanged]
-      - listitem [ref=e5]: a span
+      - listitem [visible] [ref=e5]: a span
   `);
   expect(await snapshotForAI(page, { track: 'second', mode: 'incremental' })).toContainYaml(`
   `);
 
   expect(await snapshotForAI(page, { track: 'second', mode: 'full' })).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]:
-        - button "a button" [ref=e4]
-      - listitem [ref=e5]: a span
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]:
+        - button "a button" [visible] [ref=e4]
+      - listitem [visible] [ref=e5]: a span
   `);
 });
 
@@ -548,26 +548,26 @@ it('should create incremental snapshot for attribute change', async ({ page }) =
   await page.setContent(`<button>a button</button>`);
   await page.evaluate(() => document.querySelector('button').focus());
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - button "a button" [active] [ref=e2]
+    - button "a button" [active] [visible] [ref=e2]
   `);
 
   await page.evaluate(() => document.querySelector('button').blur());
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> button "a button" [ref=e2]
+    - <changed> button "a button" [visible] [ref=e2]
   `);
 });
 
 it('should create incremental snapshot for child removal', async ({ page }) => {
   await page.setContent(`<li><button>a button</button><span>some text</span></li>`);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - listitem [ref=e2]:
-      - button "a button" [ref=e3]
+    - listitem [visible] [ref=e2]:
+      - button "a button" [visible] [ref=e3]
       - text: some text
   `);
 
   await page.evaluate(() => document.querySelector('span').remove());
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> listitem [ref=e2]:
+    - <changed> listitem [visible] [ref=e2]:
       - ref=e3 [unchanged]
   `);
 });
@@ -575,13 +575,13 @@ it('should create incremental snapshot for child removal', async ({ page }) => {
 it('should create incremental snapshot for child addition', async ({ page }) => {
   await page.setContent(`<li><button>a button</button><span style="display:none">some text</span></li>`);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - listitem [ref=e2]:
-      - button "a button" [ref=e3]
+    - listitem [visible] [ref=e2]:
+      - button "a button" [visible] [ref=e3]
   `);
 
   await page.evaluate(() => document.querySelector('span').style.display = 'inline');
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> listitem [ref=e2]:
+    - <changed> listitem [visible] [ref=e2]:
       - ref=e3 [unchanged]
       - text: some text
   `);
@@ -590,13 +590,13 @@ it('should create incremental snapshot for child addition', async ({ page }) => 
 it('should create incremental snapshot for prop change', async ({ page }) => {
   await page.setContent(`<a href="about:blank" style="cursor:pointer">a link</a>`);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - link "a link" [ref=e2] [cursor=pointer]:
+    - link "a link" [visible] [ref=e2] [cursor=pointer]:
       - /url: about:blank
   `);
 
   await page.evaluate(() => document.querySelector('a').setAttribute('href', 'https://playwright.dev'));
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> link "a link" [ref=e2] [cursor=pointer]:
+    - <changed> link "a link" [visible] [ref=e2] [cursor=pointer]:
       - /url: https://playwright.dev
   `);
 });
@@ -604,13 +604,13 @@ it('should create incremental snapshot for prop change', async ({ page }) => {
 it('should create incremental snapshot for cursor change', async ({ page }) => {
   await page.setContent(`<a href="about:blank" style="cursor:pointer">a link</a>`);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - link "a link" [ref=e2] [cursor=pointer]:
+    - link "a link" [visible] [ref=e2] [cursor=pointer]:
       - /url: about:blank
   `);
 
   await page.evaluate(() => document.querySelector('a').style.cursor = 'default');
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> link "a link" [ref=e2]:
+    - <changed> link "a link" [visible] [ref=e2]:
       - /url: about:blank
   `);
 });
@@ -618,24 +618,24 @@ it('should create incremental snapshot for cursor change', async ({ page }) => {
 it('should create incremental snapshot for name change', async ({ page }) => {
   await page.setContent(`<button><span>a button</span></button>`);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - button "a button" [ref=e2]
+    - button "a button" [visible] [ref=e2]
   `);
 
   await page.evaluate(() => document.querySelector('span').textContent = 'new button');
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> button "new button" [ref=e3]
+    - <changed> button "new button" [visible] [ref=e3]
   `);
 });
 
 it('should create incremental snapshot for text change', async ({ page }) => {
   await page.setContent(`<li><span>an item</span></li>`);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - listitem [ref=e2]: an item
+    - listitem [visible] [ref=e2]: an item
   `);
 
   await page.evaluate(() => document.querySelector('span').textContent = 'new text');
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> listitem [ref=e2]: new text
+    - <changed> listitem [visible] [ref=e2]: new text
   `);
 });
 
@@ -650,9 +650,9 @@ it('should produce incremental snapshot for iframes', async ({ page }) => {
     "></iframe>
   `);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - iframe [ref=e2]:
-      - listitem [ref=f1e2]:
-        - button "a button" [ref=f1e3]
+    - iframe [visible] [ref=e2]:
+      - listitem [visible] [ref=f1e2]:
+        - button "a button" [visible] [ref=f1e3]
   `);
 
   await page.frames()[1].evaluate(() => {
@@ -660,12 +660,12 @@ it('should produce incremental snapshot for iframes', async ({ page }) => {
     document.querySelector('iframe').style.display = 'block';
   });
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> listitem [ref=f1e2]:
-      - generic [ref=f1e4]: outer text
+    - <changed> listitem [visible] [ref=f1e2]:
+      - generic [visible] [ref=f1e4]: outer text
       - ref=f1e3 [unchanged]
-      - iframe [ref=f1e5]
-    - <changed> iframe [ref=f1e5]:
-      - listitem [ref=f2e2]: inner text
+      - iframe [visible] [ref=f1e5]
+    - <changed> iframe [visible] [ref=f1e5]:
+      - listitem [visible] [ref=f2e2]: inner text
   `);
 });
 
@@ -682,14 +682,14 @@ it('should create multiple chunks in incremental snapshot', async ({ page }) => 
     </ul>
   `);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]: item1
-      - listitem [ref=e4]: item2
-      - listitem [ref=e5]:
-        - group [ref=e6]: item3
-      - list [ref=e7]:
-        - listitem [ref=e8]: to be removed
-        - listitem [ref=e9]: one more
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]: item1
+      - listitem [visible] [ref=e4]: item2
+      - listitem [visible] [ref=e5]:
+        - group [visible] [ref=e6]: item3
+      - list [visible] [ref=e7]:
+        - listitem [visible] [ref=e8]: to be removed
+        - listitem [visible] [ref=e9]: one more
   `);
 
   await page.evaluate(() => {
@@ -702,11 +702,11 @@ it('should create multiple chunks in incremental snapshot', async ({ page }) => 
     document.querySelector('#to-remove').remove();
   });
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> listitem [ref=e3]: new item1
-    - <changed> group [ref=e6]:
+    - <changed> listitem [visible] [ref=e3]: new item1
+    - <changed> group [visible] [ref=e6]:
       - text: new item3
-      - button "button" [ref=e10]
-    - <changed> list [ref=e7]:
+      - button "button" [visible] [ref=e10]
+    - <changed> list [visible] [ref=e7]:
       - ref=e9 [unchanged]
   `);
 });
@@ -715,10 +715,10 @@ it('should not create incremental snapshots without tracks', async ({ page }) =>
   await page.setContent(`<ul><li><button>a button</button></li><li><span>a span</span></li><li id=hidden-li style="display:none">some text</li></ul>`);
 
   expect(await snapshotForAI(page, { mode: 'full' })).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]:
-        - button "a button" [ref=e4]
-      - listitem [ref=e5]: a span
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]:
+        - button "a button" [visible] [ref=e4]
+      - listitem [visible] [ref=e5]: a span
   `);
   expect(await snapshotForAI(page, { mode: 'incremental' })).toBe(undefined);
 });
@@ -731,14 +731,14 @@ it('should create incremental snapshot for children swap', async ({ page }) => {
     </ul>
   `);
   expect(await snapshotForAI(page, { track: 'track', mode: 'full' })).toContainYaml(`
-    - list [ref=e2]:
-      - listitem [ref=e3]: item 1
-      - listitem [ref=e4]: item 2
+    - list [visible] [ref=e2]:
+      - listitem [visible] [ref=e3]: item 1
+      - listitem [visible] [ref=e4]: item 2
   `);
 
   await page.evaluate(() => document.querySelector('ul').appendChild(document.querySelector('li')));
   expect(await snapshotForAI(page, { track: 'track', mode: 'incremental' })).toContainYaml(`
-    - <changed> list [ref=e2]:
+    - <changed> list [visible] [ref=e2]:
       - ref=e4 [unchanged]
       - ref=e3 [unchanged]
   `);

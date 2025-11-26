@@ -25,6 +25,8 @@ import type { AriaProps, AriaRegex, AriaTextValue, AriaRole, AriaTemplateNode } 
 import type { Box } from './domUtils';
 
 // Note: please keep in sync with ariaNodesEqual() below.
+type ViewportStatus = 'visible' | `offscreen:${string}`;
+
 export type AriaNode = AriaProps & {
   role: AriaRole | 'fragment' | 'iframe';
   name: string;
@@ -34,12 +36,15 @@ export type AriaNode = AriaProps & {
   box: Box;
   receivesPointerEvents: boolean;
   props: Record<string, string>;
+  viewportStatus?: ViewportStatus;
 };
 
 function ariaNodesEqual(a: AriaNode, b: AriaNode): boolean {
   if (a.role !== b.role || a.name !== b.name)
     return false;
   if (!ariaPropsEqual(a, b) || hasPointerCursor(a) !== hasPointerCursor(b))
+    return false;
+  if (a.viewportStatus !== b.viewportStatus)
     return false;
   const aKeys = Object.keys(a.props);
   const bKeys = Object.keys(b.props);
@@ -74,6 +79,7 @@ type InternalOptions = {
   renderCursorPointer?: boolean,
   renderActive?: boolean,
   renderStringsAsRegex?: boolean,
+  renderViewportStatus?: boolean,
 };
 
 function toInternalOptions(options: AriaTreeOptions): InternalOptions {
@@ -86,6 +92,7 @@ function toInternalOptions(options: AriaTreeOptions): InternalOptions {
       includeGenericRole: true,
       renderActive: true,
       renderCursorPointer: true,
+      renderViewportStatus: true,
     };
   }
   if (options.mode === 'autoexpect') {
@@ -278,6 +285,8 @@ function toAriaNode(element: Element, options: InternalOptions): AriaNode | null
     active
   };
   computeAriaRef(result, options);
+  if (options.renderViewportStatus)
+    result.viewportStatus = computeViewportStatus(element, box);
 
   if (roleUtils.kAriaCheckedRoles.includes(role))
     result.checked = roleUtils.getAriaChecked(element);
@@ -303,6 +312,36 @@ function toAriaNode(element: Element, options: InternalOptions): AriaNode | null
   }
 
   return result;
+}
+
+function computeViewportStatus(element: Element, box: Box): ViewportStatus | undefined {
+  const rect = box.rect ?? element.getBoundingClientRect?.();
+  const ownerDocument = element.ownerDocument;
+  const ownerWindow = ownerDocument?.defaultView;
+  const viewportWidth = ownerWindow?.innerWidth ?? ownerDocument?.documentElement?.clientWidth ?? 0;
+  const viewportHeight = ownerWindow?.innerHeight ?? ownerDocument?.documentElement?.clientHeight ?? 0;
+  if (!rect || !viewportWidth || !viewportHeight)
+    return;
+
+  const intersectsHorizontally = rect.left < viewportWidth && rect.right > 0;
+  const intersectsVertically = rect.top < viewportHeight && rect.bottom > 0;
+  if (intersectsHorizontally && intersectsVertically)
+    return 'visible';
+
+  const directions: string[] = [];
+  if (rect.bottom <= 0)
+    directions.push('above');
+  else if (rect.top >= viewportHeight)
+    directions.push('below');
+
+  if (rect.right <= 0)
+    directions.push('left');
+  else if (rect.left >= viewportWidth)
+    directions.push('right');
+
+  if (!directions.length)
+    return 'visible';
+  return `offscreen:${directions.join('-')}`;
 }
 
 function normalizeGenericRoles(node: AriaNode) {
@@ -633,6 +672,13 @@ export function renderAriaTree(ariaSnapshot: AriaSnapshot, publicOptions: AriaTr
       key += ` [pressed]`;
     if (ariaNode.selected === true)
       key += ` [selected]`;
+
+    if (options.renderViewportStatus && ariaNode.viewportStatus) {
+      if (ariaNode.viewportStatus === 'visible')
+        key += ' [visible]';
+      else
+        key += ` [${ariaNode.viewportStatus}]`;
+    }
 
     if (ariaNode.ref) {
       key += ` [ref=${ariaNode.ref}]`;
